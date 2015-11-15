@@ -1,0 +1,6 @@
+{
+    "require": {
+        "imagine/imagine": "^0.6.3",
+        "silex/silex": "^1.3"
+    }
+}
