@@ -85,6 +85,8 @@ $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
 
 $app->run();
 
+
+
 function saveImage(Rule $rule, $width, $height, $name, $extension)
 {
     $sizePath = $width . 'x' . $height . '/';
@@ -94,9 +96,59 @@ function saveImage(Rule $rule, $width, $height, $name, $extension)
     }
 
     $imagine = new Imagine\Gd\Imagine();
-    $imagine->open($rule->getLoadPath() . $name . '.' . $extension)
-        ->thumbnail(new Box($width, $height), \Imagine\Image\ImageInterface::THUMBNAIL_OUTBOUND)
-        ->save($rule->getSavePath() . $sizePath  . $name . '.' . $extension)
-        ->show($extension);
+
+    $image = $imagine->open($rule->getLoadPath() . $name . '.' . $extension);
+
+    $currentSize = $image->getSize();
+
+    $image = $image->thumbnail(new Box($width, $height));
+
+    $transparentImage = createTransparentImage($imagine, new Box($width, $height));
+
+    $beforeResizeAspectRatio = round($currentSize->getWidth() / $currentSize->getHeight(), 2);
+    $resizedAspectRatio = round($width / $height);
+
+    $x = 0;
+    $y = 0;
+    //move width
+    if ($resizedAspectRatio > $beforeResizeAspectRatio) {
+        $x = getPlacePointCoordinate($width, $image->getSize()->getWidth());
+    }
+
+    //move height
+    if ($resizedAspectRatio < $beforeResizeAspectRatio) {
+        $y = getPlacePointCoordinate($height, $image->getSize()->getHeight());
+    }
+
+    $image = $transparentImage->paste($image, new \Imagine\Image\Point($x, $y));
+    $image->show('png');
+
+    $image->save($rule->getSavePath() . $sizePath  . $name . '.' . $extension);
 }
 
+function getPlacePointCoordinate($transparentImageCoord, $resizedImageCoord) {
+
+    $transparentCenter = $transparentImageCoord / 2;
+    $resizedCenter = $resizedImageCoord / 2;
+
+    return $transparentCenter - $resizedCenter;
+}
+
+/**
+ * @param \Imagine\Gd\Imagine $imagine
+ * @param \Imagine\Image\BoxInterface $size
+ * @return \Imagine\Gd\Image
+ */
+function createTransparentImage(\Imagine\Gd\Imagine $imagine, Box $size)
+{
+    $transparentImage = $imagine->create($size);
+
+    $im = $transparentImage->getGdResource();
+
+    imagealphablending($im, false);
+    $transparency = imagecolorallocatealpha($im, 0, 0, 0, 127);
+    imagefill($im, 0, 0, $transparency);
+    imagesavealpha($im, true);
+
+    return $transparentImage;
+}
