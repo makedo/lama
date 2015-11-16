@@ -68,7 +68,7 @@ $rule = new ibe30(
 $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
     function ($width, $height, $name, $extension) use ($rule) {
 
-        saveImage(
+        $image = saveImage(
             $rule,
             $width,
             $height,
@@ -76,7 +76,11 @@ $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
             $extension
         );
 
-        exit(0);
+        return \Symfony\Component\HttpFoundation\Response::create(
+            $image->response($extension),
+            200,
+            ['Content-Type' => 'image/' . $extension]
+        );
     }
 )
     ->assert('width', '\d{1,3}')
@@ -86,7 +90,14 @@ $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
 $app->run();
 
 
-
+/**
+ * @param Rule $rule
+ * @param $width
+ * @param $height
+ * @param $name
+ * @param $extension
+ * @return \Intervention\Image\Image
+ */
 function saveImage(Rule $rule, $width, $height, $name, $extension)
 {
     $sizePath = $width . 'x' . $height . '/';
@@ -101,5 +112,5 @@ function saveImage(Rule $rule, $width, $height, $name, $extension)
     $image->resize($width, $height);
 
     $image->save($rule->getSavePath() . $sizePath  . $name . '.' . $extension);
-    echo $image->response();
+    return $image;
 }
