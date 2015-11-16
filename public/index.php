@@ -66,17 +66,23 @@ $rule = new ibe30(
 );
 
 $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
-    function ($width, $height, $name, $extension) use ($rule) {
+    function (Silex\Application $app, $width, $height, $name, $extension) use ($rule) {
 
-        saveImage(
-            $rule,
-            $width,
-            $height,
-            $name,
-            $extension
-        );
+        $sizePath = $width . 'x' . $height . '/';
 
-        exit(0);
+        if (! file_exists(($rule->getSavePath() . $sizePath ))) {
+            mkdir($rule->getSavePath() . $sizePath, 0777, true);
+        }
+
+        $manager = new ImageManager(array('driver' => 'gd'));
+
+        $image = $manager->make($rule->getLoadPath() . $name . '.' . $extension);
+        $image->resize($width, $height);
+
+        $savedFile = $rule->getSavePath() . $sizePath . $name . '.' . $extension;
+        $image->save($savedFile);
+
+        return $app->sendFile($savedFile);
     }
 )
     ->assert('width', '\d{1,3}')
@@ -85,21 +91,3 @@ $app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
 
 $app->run();
 
-
-
-function saveImage(Rule $rule, $width, $height, $name, $extension)
-{
-    $sizePath = $width . 'x' . $height . '/';
-
-    if (! file_exists(($rule->getSavePath() . $sizePath ))) {
-        mkdir($rule->getSavePath() . $sizePath, 0777, true);
-    }
-
-    $manager = new ImageManager(array('driver' => 'gd'));
-
-    $image = $manager->make($rule->getLoadPath() . $name . '.' . $extension);
-    $image->resize($width, $height);
-
-    $image->save($rule->getSavePath() . $sizePath  . $name . '.' . $extension);
-    echo $image->response();
-}
