@@ -2,115 +2,55 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-interface Rule {
-    public function getRoute();
-    public function getSavePath();
-    public function getLoadPath();
-}
-
-class ibe30 implements Rule {
-
-    private $route;
-    private $savePath;
-    private $loadPath;
-
-    /**
-     * ibe30 constructor.
-     * @param $route
-     * @param $savePath
-     * @param $loadPath
-     */
-    public function __construct($route, $savePath, $loadPath)
-    {
-        $this->route = $route;
-        $this->savePath = $savePath;
-        $this->loadPath = $loadPath;
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getRoute()
-    {
-        return $this->route;
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getSavePath()
-    {
-        return $this->savePath;
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getLoadPath()
-    {
-        return $this->loadPath;
-    }
-
-}
-
 use Intervention\Image\ImageManager;
 
 $app = new Silex\Application();
 $app['debug'] = true;
 
+$rules = [
+    'img/airlines/logos/' => __DIR__ . '/images/',
+    'rule/images/'        => __DIR__ . '/images/',
+    'rule/images/shot/'   => __DIR__ . '/images/',
+];
 
-$rule = new ibe30(
-    'img/airlines/logos/',
-    'img/airlines/logos/',
-    __DIR__ . '/images/'
-);
+$app->get('{path}' . '{width}' . '{sizedelimiter}' . '{height}' . '/' . '{name}.{extension}',
+    function (Silex\Application $app, $path, $width, $height, $sizedelimiter, $name, $extension) use ($rules) {
 
-$app->get($rule->getRoute() . '{width}x{height}/{name}.{extension}',
-    function ($width, $height, $name, $extension) use ($rule) {
+        //find configuration by path.
+        // User can have in configuration /{path}/ or {path} or /{path} or {path}/
+        $loadPath = '';
+        if (array_key_exists($path, $rules)) {
+            $loadPath = $rules[$path];
+        } else {
+            // @TODO return fallback image
+            return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
+        }
 
-        $image = saveImage(
-            $rule,
-            $width,
-            $height,
-            $name,
-            $extension
-        );
+        $manager = new ImageManager(array('driver' => 'gd'));
 
-        return \Symfony\Component\HttpFoundation\Response::create(
-            $image->response($extension),
-            200,
-            ['Content-Type' => 'image/' . $extension]
-        );
+        $image = $manager->make($loadPath . $name . '.' . $extension);
+        $image->resize($width, $height);
+
+        $sizePath = $width . $sizedelimiter . $height . '/';
+        if (! file_exists(($path . $sizePath ))) {
+            mkdir($path . $sizePath, 0777, true);
+        }
+
+        $savedFile = $path . $sizePath . $name . '.' . $extension;
+        $image->save($savedFile);
+
+        return $app->sendFile($savedFile);
     }
 )
-    ->assert('width', '\d{1,3}')
-    ->assert('height', '\d{1,3}')
+    ->assert('sizedelimiter', 'x')
+    ->assert('path', '([a-z0-9]{0,}[\/]{1}){1,}')
+    ->assert('width', '[1-9]{1}[0-9]{1,3}')
+    ->assert('height', '[1-9]{1}[0-9]{1,3}')
     ->assert('extension', 'png|jpg');
+
+$app->error(function() {
+    return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
+});
 
 $app->run();
 
-
-/**
- * @param Rule $rule
- * @param $width
- * @param $height
- * @param $name
- * @param $extension
- * @return \Intervention\Image\Image
- */
-function saveImage(Rule $rule, $width, $height, $name, $extension)
-{
-    $sizePath = $width . 'x' . $height . '/';
-
-    if (! file_exists(($rule->getSavePath() . $sizePath ))) {
-        mkdir($rule->getSavePath() . $sizePath, 0777, true);
-    }
-
-    $manager = new ImageManager(array('driver' => 'gd'));
-
-    $image = $manager->make($rule->getLoadPath() . $name . '.' . $extension);
-    $image->resize($width, $height);
-
-    $image->save($rule->getSavePath() . $sizePath  . $name . '.' . $extension);
-    return $image;
-}
