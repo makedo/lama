@@ -8,27 +8,41 @@ $app = new Silex\Application();
 $app['debug'] = true;
 
 $rules = [
-    'img/airlines/logos/' => __DIR__ . '/images/',
-    'rule/images/'        => __DIR__ . '/images/',
-    'rule/images/shot/'   => __DIR__ . '/images/',
+    'img/airlines/logos/' => [
+        'load' => __DIR__ . '/images/',
+        'sizes' => [
+            ['w' => 100, 'h' => 100],
+            ['w' => 150, 'h' => 100],
+        ]
+    ],
 ];
 
 $app->get('{path}' . '{width}' . '{sizedelimiter}' . '{height}' . '/' . '{name}.{extension}',
     function (Silex\Application $app, $path, $width, $height, $sizedelimiter, $name, $extension) use ($rules) {
 
-        //find configuration by path.
-        // User can have in configuration /{path}/ or {path} or /{path} or {path}/
-        $loadPath = '';
+        $config = '';
         if (array_key_exists($path, $rules)) {
-            $loadPath = $rules[$path];
+            $config = $rules[$path];
         } else {
             // @TODO return fallback image
             return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
         }
 
-        $manager = new ImageManager(array('driver' => 'gd'));
+        $areSizesValid = false;
+        foreach ($config['sizes'] as $size) {
+            if ($size['w'] == $width && $size['h'] == $height) {
+                $areSizesValid = true;
+                break;
+            }
+        }
+        if (! $areSizesValid) {
+            return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
+        }
 
+        $loadPath = $config['load'];
+        $manager = new ImageManager(array('driver' => 'gd'));
         $image = $manager->make($loadPath . $name . '.' . $extension);
+
         $image->resize($width, $height);
 
         $sizePath = $width . $sizedelimiter . $height . '/';
@@ -44,8 +58,8 @@ $app->get('{path}' . '{width}' . '{sizedelimiter}' . '{height}' . '/' . '{name}.
 )
     ->assert('sizedelimiter', 'x')
     ->assert('path', '([a-z0-9]{0,}[\/]{1}){1,}')
-    ->assert('width', '[1-9]{1}[0-9]{1,3}')
-    ->assert('height', '[1-9]{1}[0-9]{1,3}')
+    ->assert('width', '[1-9]{1}[0-9]{0,3}')
+    ->assert('height', '[1-9]{1}[0-9]{0,3}')
     ->assert('extension', 'png|jpg');
 
 $app->error(function() {
@@ -53,4 +67,3 @@ $app->error(function() {
 });
 
 $app->run();
-
