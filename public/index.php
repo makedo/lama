@@ -7,48 +7,35 @@ use Intervention\Image\ImageManager;
 $app = new Silex\Application();
 $app['debug'] = true;
 
-$rules = [
-    'img/airlines/logos/' => [
-        'load' => __DIR__ . '/images/',
-        'sizes' => [
-            ['w' => 100, 'h' => 100],
-            ['w' => 150, 'h' => 100],
-        ]
-    ],
+$paths = [
+    'img/airlines/logos/' => __DIR__ . '/images'
 ];
 
 $app->get('{path}' . '{width}' . '{sizedelimiter}' . '{height}' . '/' . '{name}.{extension}',
-    function (Silex\Application $app, $path, $width, $height, $sizedelimiter, $name, $extension) use ($rules) {
+    function (Silex\Application $app, $path, $width, $height, $sizedelimiter, $name, $extension) use ($paths) {
 
-        $config = '';
-        if (array_key_exists($path, $rules)) {
-            $config = $rules[$path];
+
+        $loadPath = '';
+        if (array_key_exists($path, $paths)) { //if there no path in valid paths
+            $loadPath = $paths[$path];
         } else {
             // @TODO return fallback image
             return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
         }
 
-        $areSizesValid = false;
-        foreach ($config['sizes'] as $size) {
-            if ($size['w'] == $width && $size['h'] == $height) {
-                $areSizesValid = true;
-                break;
-            }
-        }
-        if (! $areSizesValid) {
+        $sizePath = $width . $sizedelimiter . $height . '/';
+        if (! file_exists(($path . $sizePath ))) { //if there no folder with needed size
             return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
         }
 
-        $loadPath = $config['load'];
         $manager = new ImageManager(array('driver' => 'gd'));
         $image = $manager->make($loadPath . $name . '.' . $extension);
 
-        $image->resize($width, $height);
-
-        $sizePath = $width . $sizedelimiter . $height . '/';
-        if (! file_exists(($path . $sizePath ))) {
-            mkdir($path . $sizePath, 0777, true);
+        if (($image->getWidth() - $image->getHeight()) > 0) { //if image is not square
+            return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
         }
+
+        $image->resize($width, $height);
 
         $savedFile = $path . $sizePath . $name . '.' . $extension;
         $image->save($savedFile);
